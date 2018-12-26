@@ -32,7 +32,7 @@ class M_PatchMatch():
 		assert border_size >= 0
 
 		if D == "l2":
-			self.D = lambda x, y : np.linalg.norm(x - y, "fro")
+			self.D = lambda x, y : np.linalg.norm(x - y)
 
 
 	def run(self, nb_iter=5):
@@ -64,7 +64,7 @@ class M_PatchMatch():
 		U = np.zeros((self.h, self.w, 2))
 		U[:, :, 0] = np.random.randint(0, self.h, size=(self.h, self.w))
 		U[:, :, 1] = np.random.randint(0, self.w, size=(self.h, self.w))
-		nnf = U - xy
+		nnf = (U - xy).astype(int)
 
 		# a little trick, set nnf's border to zero
 		nnf[:self.border_size, :] = 0
@@ -75,29 +75,44 @@ class M_PatchMatch():
 		return nnf
 
 
-	def __first_order_predictors(i, j, iter):
-		'''returns candidate first order predictors'''
-		d = {}
-		return d
+	def __optimal_first_order_predictor(self, i, j, iter, nnf):
+		'''returns the optimal first order predictor'''
+		if iter % 2 == 0:
+			phi1 = 2 * nnf[i - 1, j, :] - nnf[i - 2, j, :]
+			phi2 = 2 * nnf[i, j - 1, :] - nnf[i, j - 2, :]
+			dist1 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi1))
+			dist2 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi2))
+			if dist1 <= dist2:
+				return phi1
+			else:
+				return phi2
+		else:
+			phi1 = 2 * nnf[i + 1, j, :] - nnf[i + 2, j, :]
+			phi2 = 2 * nnf[i, j + 1, :] - nnf[i, j + 2, :]
+			dist1 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi1))
+			dist2 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi2))
+			if dist1 <= dist2:
+				return phi1
+			else:
+				return phi2
 
 
 	def __propagation(self, nnf, iter):
 		if iter % 2 == 0:
-			for j in range(1, self.h):
-				for i in range(1, self.w):
-					d = __first_order_predictors(i, j, iter)
-					nnf[i, j, :] = min(d, key=d.get)
+			for i in range(2, self.h):
+				for j in range(2, self.w):
+					nnf[i, j, :] = self.__optimal_first_order_predictor(i, j, iter, nnf)
 		else:
-			pass
+			for i in reversed(range(0, self.h - 2)):
+				for j in reversed(range(0, self.w - 2)):
+					nnf[i, j, :] = self.__optimal_first_order_predictor(i, j, iter, nnf)
 		return nnf
 
 
 	def __random_search(self, nnf):
 		return nnf
 
-mpm = M_PatchMatch(np.ones((768, 1024, 3)))
-#mpm = M_PatchMatch(np.ones((3, 3)), patch_size=1)
-nnf = mpm.run()
-print(nnf[:, :, 0])
-print("\n")
-print(nnf[:, :, 1])
+
+
+
+
