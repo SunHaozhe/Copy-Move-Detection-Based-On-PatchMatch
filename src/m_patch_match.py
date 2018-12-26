@@ -4,6 +4,7 @@ Author: Haozhe Sun
 """
 
 import numpy as np 
+from numba import jit
 
 class M_PatchMatch():
 	'''
@@ -11,7 +12,7 @@ class M_PatchMatch():
 	Outputs a Nearest Neighbor field mapping
 	'''
 
-	def __init__(self, I, patch_size=16, D="l2", border_size=2):
+	def __init__(self, I, patch_size=16, D="norm", border_size=0, non_zero_nnf=True):
 		'''
 		I: image, numpy array
 		D: distance measure, default is L2 distance
@@ -21,6 +22,7 @@ class M_PatchMatch():
 		self.I = I
 		self.patch_size = patch_size
 		self.border_size = border_size
+		self.non_zero_nnf = non_zero_nnf
 
 		# height of available regions of the reprensentative pixels of patches
 		self.h = self.I.shape[0] - patch_size + 1 
@@ -28,13 +30,25 @@ class M_PatchMatch():
 		self.w = self.I.shape[1] - patch_size + 1 
 
 		assert self.h > 0 and self.w > 0, "patch_size is too large for this image"
-		assert D == "l2", "Only L2 distance measure is supported"
-		assert border_size >= 0
+		assert D == "norm", "Only norm distance measure is supported"
+		assert border_size >= 0 and border_size <= 1, \
+			   "border_size can be either 0 or 1, not others"
 
-		if D == "l2":
+		if D == "norm":
 			self.D = lambda x, y : np.linalg.norm(x - y)
 
+		grid = [- 1, 0, 1]
+		self.R_space = []
 
+		for i in range(len(grid)):
+			for j in range(len(grid)):
+				if grid[i] == 0 and grid[j] == 0:
+					continue
+				self.R_space.append(np.array([grid[i], grid[j]]))
+		self.R_space = np.array(self.R_space)
+
+
+	@jit
 	def run(self, nb_iter=5):
 		'''
 		nb_iter: number of iterations of the algorithm
@@ -42,7 +56,7 @@ class M_PatchMatch():
 		nnf = self.__initialize()
 		for iter in range(nb_iter):
 			nnf = self.__propagation(nnf, iter)
-			nnf = self.__random_search(nnf)
+			nnf = self.__random_search(nnf, iter)
 		return nnf
 
 
@@ -50,6 +64,8 @@ class M_PatchMatch():
 		'''
 		gets the patch corresponding to the representative pixel z(x, y)
 		'''
+		assert self.__is_inside(z[0], z[1], np.array([0, 0])), \
+				"The representative pixel is out of bound"
 		return self.I[z[0]:z[0] + self.patch_size, z[1]:z[1] + self.patch_size]
 
 
@@ -67,10 +83,11 @@ class M_PatchMatch():
 		nnf = (U - xy).astype(int)
 
 		# a little trick, set nnf's border to zero
-		nnf[:self.border_size, :] = 0
-		nnf[-self.border_size:, :] = 0
-		nnf[:, -self.border_size:] = 0
-		nnf[:, :self.border_size] = 0
+		if self.border_size != 0:
+			nnf[:self.border_size, :] = 0
+			nnf[-self.border_size:, :] = 0
+			nnf[:, -self.border_size:] = 0
+			nnf[:, :self.border_size] = 0
 
 		return nnf
 
@@ -79,24 +96,53 @@ class M_PatchMatch():
 		'''returns the optimal first order predictor'''
 		if iter % 2 == 0:
 			phi1 = 2 * nnf[i - 1, j, :] - nnf[i - 2, j, :]
+			if not self.__is_inside(i, j, phi1):
+				phi1 = nnf[i - 1, j, :]
+
 			phi2 = 2 * nnf[i, j - 1, :] - nnf[i, j - 2, :]
-			dist1 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi1))
-			dist2 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi2))
-			if dist1 <= dist2:
-				return phi1
-			else:
-				return phi2
+			if not self.__is_inside(i, j, phi2):
+				phi2 = nnf[i, j - 1, :]
+			#assert self.__is_inside(i, j, phi1), "Not inside phi1: " + str(np.array([i, j]) + phi1) + ", " + str((self.h, self.w))
+			#assert self.__is_inside(i, j, phi2), "Not inside phi2: " + str(np.array([i, j]) + phi2) + ", " + str((self.h, self.w))
 		else:
 			phi1 = 2 * nnf[i + 1, j, :] - nnf[i + 2, j, :]
+			if not self.__is_inside(i, j, phi1):
+				phi1 = nnf[i + 1, j, :]
+
 			phi2 = 2 * nnf[i, j + 1, :] - nnf[i, j + 2, :]
+			if not self.__is_inside(i, j, phi2):
+				phi2 = nnf[i, j + 1, :]
+
+		if self.__is_inside(i, j, phi1):
 			dist1 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi1))
+		else:
+			dist1 = float("inf")
+
+		if self.__is_inside(i, j, phi2):
 			dist2 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi2))
-			if dist1 <= dist2:
-				return phi1
-			else:
-				return phi2
+		else:
+			dist2 = float("inf")
+
+		phi3 = nnf[i, j, :]
+		dist3 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi3))
+
+		if self.non_zero_nnf:
+			new = np.array([i, j]) + phi1
+			if new[0] == 0 and new[1] == 0:
+				dist1 = float("inf")
+			new = np.array([i, j]) + phi2
+			if new[0] == 0 and new[1] == 0:
+				dist2 = float("inf")
+
+		if dist1 <= min(dist2, dist3):
+			return phi1
+		elif dist2 <= min(dist1, dist3):
+			return phi2
+		else:
+			return phi3
 
 
+	@jit
 	def __propagation(self, nnf, iter):
 		if iter % 2 == 0:
 			for i in range(2, self.h):
@@ -109,7 +155,66 @@ class M_PatchMatch():
 		return nnf
 
 
-	def __random_search(self, nnf):
+	def __is_inside(self, i, j, offset):
+		'''
+		checks if the (pixel(i, j) + offset) is still inside the valid region of
+		representative pixels
+		'''
+		if (i + offset[0] >= 0) and \
+		   (i + offset[0] < self.h) and \
+		   (j + offset[1] >= 0) and \
+		   (j + offset[1] < self.w):
+			return True
+		else:
+			return False
+
+
+	def __build_candidates(self, nnf, i, j):
+		'''
+		finds valid candidates for random search
+		'''
+		ii = 1
+		candidates = [nnf[i, j, :]]
+		while(True):
+			space = self.R_space
+			space = [item for item in self.R_space \
+				    if self.__is_inside(i, j, nnf[i, j, :] + int(2 ** (ii - 1)) * item)]
+			if len(space) == 0:
+				break
+			idx = np.random.choice(range(len(space)))
+			R = space[idx]
+			candidates.append(nnf[i, j, :] + int(2 ** (ii - 1)) * R)
+			ii += 1
+		return candidates
+
+
+	def __random_search_for_one_pixel(self, nnf, i, j):
+		candidates = self.__build_candidates(nnf, i, j)
+		result = candidates[0]
+		min_dist = float("inf")
+		for candidate in candidates:
+			dist = self.D(self.__get(np.array([i, j])), 
+						  self.__get(np.array([i, j]) + candidate))
+			if self.non_zero_nnf:
+				new = np.array([i, j]) + candidate
+				if new[0] == 0 and new[1] == 0:
+					dist = float("inf")
+			if dist < min_dist:
+				min_dist = dist
+				result = candidate
+		return result
+
+
+	@jit
+	def __random_search(self, nnf, iter):
+		if iter % 2 == 0:
+			for i in range(self.h):
+				for j in range(self.w):
+					nnf[i, j, :] = self.__random_search_for_one_pixel(nnf, i, j)
+		else:
+			for i in reversed(range(self.h)):
+				for j in reversed(range(self.w)):
+					nnf[i, j, :] = self.__random_search_for_one_pixel(nnf, i, j)
 		return nnf
 
 
