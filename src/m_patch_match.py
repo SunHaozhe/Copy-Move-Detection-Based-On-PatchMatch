@@ -11,7 +11,8 @@ class M_PatchMatch():
 	Outputs a Nearest Neighbor field mapping
 	'''
 
-	def __init__(self, I, patch_size=16, D="norm", border_size=0, non_zero_nnf=True):
+	def __init__(self, I, patch_size=16, D="norm", border_size=0, 
+				 non_zero_nnf=True, get_dist=False):
 		'''
 		I: image, numpy array
 		D: distance measure, default is L2 distance
@@ -22,6 +23,7 @@ class M_PatchMatch():
 		self.patch_size = patch_size
 		self.border_size = border_size
 		self.non_zero_nnf = non_zero_nnf
+		self.get_dist = get_dist
 
 		# height of available regions of the reprensentative pixels of patches
 		self.h = self.I.shape[0] - patch_size + 1 
@@ -55,6 +57,15 @@ class M_PatchMatch():
 		for iter in range(nb_iter):
 			nnf = self.__propagation(nnf, iter)
 			nnf = self.__random_search(nnf, iter)
+
+		df = np.zeros((nnf.shape[0], nnf.shape[1]))
+		if self.get_dist:
+			for i in range(self.h):
+				for j in range(self.w):
+					df[i, j] = self.D(self.__get(np.array([i, j])), 
+										   self.__get(np.array([i, j]) + nnf[i, j, :]))
+			return nnf, df
+
 		return nnf
 
 
