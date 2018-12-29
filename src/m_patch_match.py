@@ -4,7 +4,6 @@ Author: Haozhe Sun
 """
 
 import numpy as np 
-from numba import jit
 
 class M_PatchMatch():
 	'''
@@ -48,8 +47,7 @@ class M_PatchMatch():
 		self.R_space = np.array(self.R_space)
 
 
-	@jit
-	def run(self, nb_iter=5):
+	def run(self, nb_iter=3):
 		'''
 		nb_iter: number of iterations of the algorithm
 		'''
@@ -88,6 +86,17 @@ class M_PatchMatch():
 			nnf[-self.border_size:, :] = 0
 			nnf[:, -self.border_size:] = 0
 			nnf[:, :self.border_size] = 0
+		
+		if self.non_zero_nnf:
+			for i in range(self.h):
+				for j in range(self.w):
+					if nnf[i, j, 0] == 0 and nnf[i, j, 1] == 0:
+						if self.__is_inside(i, j, np.array([1, 1])):
+							nnf[i, j, 0] = 1
+							nnf[i, j, 1] = 1
+						else:
+							nnf[i, j, 0] = - 1
+							nnf[i, j, 1] = - 1
 
 		return nnf
 
@@ -127,11 +136,9 @@ class M_PatchMatch():
 		dist3 = self.D(self.__get(np.array([i, j])), self.__get(np.array([i, j]) + phi3))
 
 		if self.non_zero_nnf:
-			new = np.array([i, j]) + phi1
-			if new[0] == 0 and new[1] == 0:
+			if phi1[0] == 0 and phi1[1] == 0:
 				dist1 = float("inf")
-			new = np.array([i, j]) + phi2
-			if new[0] == 0 and new[1] == 0:
+			if phi2[0] == 0 and phi2[1] == 0:
 				dist2 = float("inf")
 
 		if dist1 <= min(dist2, dist3):
@@ -142,7 +149,6 @@ class M_PatchMatch():
 			return phi3
 
 
-	@jit
 	def __propagation(self, nnf, iter):
 		if iter % 2 == 0:
 			for i in range(2, self.h):
@@ -197,7 +203,7 @@ class M_PatchMatch():
 						  self.__get(np.array([i, j]) + candidate))
 			if self.non_zero_nnf:
 				new = np.array([i, j]) + candidate
-				if new[0] == 0 and new[1] == 0:
+				if candidate[0] == 0 and candidate[1] == 0:
 					dist = float("inf")
 			if dist < min_dist:
 				min_dist = dist
@@ -205,7 +211,6 @@ class M_PatchMatch():
 		return result
 
 
-	@jit
 	def __random_search(self, nnf, iter):
 		if iter % 2 == 0:
 			for i in range(self.h):
@@ -216,6 +221,10 @@ class M_PatchMatch():
 				for j in reversed(range(self.w)):
 					nnf[i, j, :] = self.__random_search_for_one_pixel(nnf, i, j)
 		return nnf
+
+
+	def __nb_zero_offsets(self, nnf):
+		return np.count_nonzero(np.bitwise_and(nnf[:, :, 0] == 0, nnf[:, :, 1] == 0))
 
 
 
