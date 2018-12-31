@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import os
 
-def visualize(nnf, df, img, input_filename):
+def visualize(nnf, df, binary_map, img, input_filename):
 	fig = plt.figure(figsize=(12, 6.5))
 	plt.suptitle("Nearest Neighbor Field map (absolute value)")
 
@@ -37,10 +37,10 @@ def visualize(nnf, df, img, input_filename):
 	ax.set_title("Distance field map")
 
 	ax = plt.subplot(235)
-	plt.pcolormesh(X, Y, np.log(df), cmap = cm.copper) 
+	plt.pcolormesh(X, Y, binary_map, cmap = cm.binary) 
 	plt.colorbar()
 	plt.gca().invert_yaxis()
-	ax.set_title("Distance field map in log scale")
+	ax.set_title("Binary map")
 
 	ax = plt.subplot(236)
 	plt.imshow(img)
@@ -61,10 +61,11 @@ def filtering(thr, nnf, df):
 	w = nnf.shape[1]
 	max_value = np.max(df)
 	quantile_value = np.quantile(df, 0.5)
+	nnf_abs = np.sum(np.abs(nnf), axis=2)
 
 	for i in range(h):
 		for j in range(w):
-			if np.sum(np.abs(nnf[i, j, :])) < thr:
+			if nnf_abs[i, j] < thr:
 				nnf[i, j, :] = np.array([0, 0])
 				df[i, j] = max_value
 
@@ -74,4 +75,15 @@ def filtering(thr, nnf, df):
 			if df[i, j] > quantile_value:
 				df[i, j] = max_value
 
-	return nnf, df
+	nnf_abs = nnf_abs.astype("float64")
+	nnf_abs *= max_value / np.max(nnf_abs)
+	binary_map = nnf_abs + df
+	quantile_binary = np.quantile(binary_map, 0.3)
+	for i in range(h):
+		for j in range(w):
+			if binary_map[i, j] >= quantile_binary:
+				binary_map[i, j] = quantile_binary
+			else:
+				binary_map[i, j] = 0
+
+	return nnf, df, binary_map

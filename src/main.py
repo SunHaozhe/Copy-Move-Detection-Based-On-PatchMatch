@@ -32,10 +32,10 @@ nnf, df = mpm.run(nb_iter=5)
 
 # post-processing
 thr = 10
-nnf, df = filtering(thr, nnf, df)
+nnf, df, binary_map = filtering(thr, nnf, df)
 
 
 print(nnf.shape)
 print("Done in %.4f s." % (time() - t0))
 
-visualize(nnf, df, img, filename)
+visualize(nnf, df, binary_map, img, filename)
