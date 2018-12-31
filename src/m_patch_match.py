@@ -11,7 +11,7 @@ class M_PatchMatch():
 	Outputs a Nearest Neighbor field mapping
 	'''
 
-	def __init__(self, I, patch_size=16, D="norm", border_size=0, 
+	def __init__(self, I, patch_size=16, D="l1", border_size=0, 
 				 non_zero_nnf=True, get_dist=False):
 		'''
 		I: image, numpy array
@@ -31,12 +31,12 @@ class M_PatchMatch():
 		self.w = self.I.shape[1] - patch_size + 1 
 
 		assert self.h > 0 and self.w > 0, "patch_size is too large for this image"
-		assert D == "norm", "Only norm distance measure is supported"
+		assert D == "l1", "Only L1 norm distance measure is supported"
 		assert border_size >= 0 and border_size <= 1, \
 			   "border_size can be either 0 or 1, not others"
 
-		if D == "norm":
-			self.D = lambda x, y : np.linalg.norm(x - y)
+		if D == "l1":
+			self.D = lambda x, y : np.sum(np.abs(x - y))
 
 		grid = [- 1, 0, 1]
 		self.R_space = []
