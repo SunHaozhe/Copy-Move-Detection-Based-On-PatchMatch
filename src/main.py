@@ -9,30 +9,45 @@ from m_patch_match import M_PatchMatch
 from PIL import Image
 import os
 from utils import *
+import argparse
 
 
 t0 = time()
 
-filename = "train.jpg"
+root_list = ["original", "modified"]
 
-original_dir = "../data/original"
-modified_dir = "../data/modified"
-original_path = os.path.join(original_dir, filename)
-name, jpg = filename.split(".")
-modified_path = os.path.join(modified_dir, name + "_." + jpg )
+parser = argparse.ArgumentParser()
+parser.add_argument("filename", type=str, default="train.jpg")
+parser.add_argument("--root", type=str, default="modified")
+parser.add_argument("--patch_size", type=int, default=16)
+parser.add_argument("--nnf_threshold", type=int, default=10)
+parser.add_argument("--iter", type=int, default=5)
+parser.add_argument("--binary_threshold", type=float, default=0.3)
+args = parser.parse_args()
+
+root = args.root
+filename = args.filename
+
+assert root in root_list, "Invalid root argument"
 
 
-img = Image.open(modified_path)
+directory = os.path.join("../data", root)
+
+if root == "modified":
+	name, jpg = filename.split(".")
+	filename = name + "_." + jpg
+
+path = os.path.join(directory, filename)
+
+img = Image.open(path)
 I = np.asarray(img)
-mpm = M_PatchMatch(I, patch_size=16, get_dist=True)
+mpm = M_PatchMatch(I, patch_size=args.patch_size, get_dist=True)
 
-#mpm = M_PatchMatch(np.random.uniform(size=(768, 1024, 3)))
-#mpm = M_PatchMatch(np.ones((7, 9)), patch_size=1, border_size=1)
-nnf, df = mpm.run(nb_iter=5)
+
+nnf, df = mpm.run(nb_iter=args.iter)
 
 # post-processing
-thr = 10
-nnf, df, binary_map = filtering(thr, nnf, df)
+nnf, df, binary_map = filtering(args.nnf_threshold, nnf, df, args.binary_threshold)
 
 
 print(nnf.shape)

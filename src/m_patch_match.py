@@ -15,7 +15,7 @@ class M_PatchMatch():
 				 non_zero_nnf=True, get_dist=False):
 		'''
 		I: image, numpy array
-		D: distance measure, default is L2 distance
+		D: distance measure, default is L1 distance
 		patch_size: the size of patch, int
 		border_size: width of border that will be initialized by 0
 		'''
@@ -84,19 +84,12 @@ class M_PatchMatch():
 		'''
 		xy = np.zeros((self.h, self.w, 2)) 
 		xy[:, :, 0], xy[:, :, 1] = np.meshgrid(range(self.h), 
-			         					       range(self.w), 
-			         					 	   indexing='ij')
+											   range(self.w), 
+											   indexing='ij')
 		U = np.zeros((self.h, self.w, 2))
 		U[:, :, 0] = np.random.randint(0, self.h, size=(self.h, self.w))
 		U[:, :, 1] = np.random.randint(0, self.w, size=(self.h, self.w))
 		nnf = (U - xy).astype(int)
-
-		# a little trick, set nnf's border to zero
-		if self.border_size != 0:
-			nnf[:self.border_size, :] = 0
-			nnf[-self.border_size:, :] = 0
-			nnf[:, -self.border_size:] = 0
-			nnf[:, :self.border_size] = 0
 		
 		if self.non_zero_nnf:
 			for i in range(self.h):
@@ -108,6 +101,13 @@ class M_PatchMatch():
 						else:
 							nnf[i, j, 0] = - 1
 							nnf[i, j, 1] = - 1
+
+		# a little trick, set nnf's border to zero
+		if self.border_size != 0:
+			nnf[:self.border_size, :] = 0
+			nnf[-self.border_size:, :] = 0
+			nnf[:, -self.border_size:] = 0
+			nnf[:, :self.border_size] = 0
 
 		return nnf
 
@@ -195,7 +195,7 @@ class M_PatchMatch():
 		while(True):
 			space = self.R_space
 			space = [item for item in self.R_space \
-				    if self.__is_inside(i, j, nnf[i, j, :] + int(2 ** (ii - 1)) * item)]
+					if self.__is_inside(i, j, nnf[i, j, :] + int(2 ** (ii - 1)) * item)]
 			if len(space) == 0:
 				break
 			idx = np.random.choice(range(len(space)))

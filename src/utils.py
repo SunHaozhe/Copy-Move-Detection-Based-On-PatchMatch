@@ -56,7 +56,7 @@ def visualize(nnf, df, binary_map, img, input_filename):
 	plt.show()
 
 
-def filtering(thr, nnf, df):
+def filtering(nnf_thr, nnf, df, binary_thr):
 	h = nnf.shape[0]
 	w = nnf.shape[1]
 	max_value = np.max(df)
@@ -65,7 +65,7 @@ def filtering(thr, nnf, df):
 
 	for i in range(h):
 		for j in range(w):
-			if nnf_abs[i, j] < thr:
+			if nnf_abs[i, j] < nnf_thr:
 				nnf[i, j, :] = np.array([0, 0])
 				df[i, j] = max_value
 
@@ -78,7 +78,7 @@ def filtering(thr, nnf, df):
 	nnf_abs = nnf_abs.astype("float64")
 	nnf_abs *= max_value / np.max(nnf_abs)
 	binary_map = nnf_abs + df
-	quantile_binary = np.quantile(binary_map, 0.3)
+	quantile_binary = np.quantile(binary_map, binary_thr)
 	for i in range(h):
 		for j in range(w):
 			if binary_map[i, j] >= quantile_binary:
