@@ -12,7 +12,7 @@ class M_PatchMatch():
 	'''
 
 	def __init__(self, I, patch_size=16, D="l1", border_size=0, 
-				 non_zero_nnf=True, get_dist=False):
+				 non_zero_nnf=True, get_dist=True):
 		'''
 		I: image, numpy array
 		D: distance measure, default is L1 distance

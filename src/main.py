@@ -17,7 +17,7 @@ t0 = time()
 root_list = ["original", "modified"]
 
 parser = argparse.ArgumentParser()
-parser.add_argument("filename", type=str, default="train.jpg")
+parser.add_argument("filename", type=str)
 parser.add_argument("--root", type=str, default="modified")
 parser.add_argument("--patch_size", type=int, default=16)
 parser.add_argument("--nnf_threshold", type=int, default=10)
@@ -41,7 +41,7 @@ path = os.path.join(directory, filename)
 
 img = Image.open(path)
 I = np.asarray(img)
-mpm = M_PatchMatch(I, patch_size=args.patch_size, get_dist=True)
+mpm = M_PatchMatch(I, patch_size=args.patch_size)
 
 
 nnf, df = mpm.run(nb_iter=args.iter)
